@@ -1,0 +1,23 @@
+{
+  "projectId": "demo-project-456",
+  "currentStage": "video-generation",
+  "completedStages": [
+    "idea-generation",
+    "script-generation",
+    "character-setup"
+  ],
+  "failedOperations": [],
+  "timestamp": "2025-08-24T21:08:03.748Z",
+  "recoveryOptions": [
+    {
+      "type": "retry",
+      "description": "Retry video-generation with same parameters",
+      "riskLevel": "low"
+    },
+    {
+      "type": "fallback",
+      "description": "Use simplified video prompts",
+      "riskLevel": "medium"
+    }
+  ]
+}

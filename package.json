@@ -1,0 +1,59 @@
+{
+  "name": "ai-content-generator",
+  "version": "1.0.0",
+  "description": "AI-powered multimedia content generation system using Google's Gemini API suite",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "cli": "tsx src/cli/cli-entry.ts",
+    "cli:interactive": "tsx src/cli/cli-entry.ts interactive",
+    "cli:config": "tsx src/cli/cli-entry.ts config",
+    "cli:status": "tsx src/cli/cli-entry.ts status",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "lint": "eslint src/**/*.ts",
+    "clean": "rm -rf dist",
+    "example:veo": "tsx src/examples/veo-example.ts",
+    "example:pipeline": "tsx src/examples/content-pipeline-example.ts"
+  },
+  "keywords": [
+    "ai",
+    "content-generation",
+    "gemini",
+    "video",
+    "audio",
+    "automation"
+  ],
+  "author": "AI Content Generator",
+  "license": "MIT",
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "axios": "^1.7.0",
+    "dotenv": "^16.4.0",
+    "commander": "^12.0.0",
+    "chalk": "^5.3.0",
+    "ora": "^8.0.0",
+    "inquirer": "^10.0.0",
+    "winston": "^3.14.0",
+    "uuid": "^10.0.0",
+    "mime-types": "^2.1.35"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/uuid": "^10.0.0",
+    "@types/mime-types": "^2.1.4",
+    "@types/inquirer": "^9.0.7",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "typescript": "^5.5.0",
+    "tsx": "^4.16.0",
+    "vitest": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

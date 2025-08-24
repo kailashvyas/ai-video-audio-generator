@@ -1,0 +1,17 @@
+{
+  "projectId": "integration-test-789",
+  "currentStage": "content-integration",
+  "completedStages": [
+    "idea-generation",
+    "character-setup"
+  ],
+  "failedOperations": [],
+  "timestamp": "2025-08-24T21:16:14.248Z",
+  "recoveryOptions": [
+    {
+      "type": "retry",
+      "description": "Retry content-integration with same parameters",
+      "riskLevel": "low"
+    }
+  ]
+}
