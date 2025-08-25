@@ -111,6 +111,9 @@ async function runAudioGenerationExample() {
       ...musicResults.map(r => r.audioResult)
     ];
 
+    // Use the audio tracks and results for validation
+    console.log(`Generated ${audioTracks.length} audio tracks and ${audioResults.length} results`);
+
     // Validate synchronization requirements
     const validation = audioSynchronizer.validateSynchronization(
       narrationResults.map(r => r.audioTrack),

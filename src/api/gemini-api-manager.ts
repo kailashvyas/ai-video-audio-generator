@@ -195,26 +195,29 @@ export class GeminiAPIManager {
 
       if (referenceImage) {
         // Image-to-video generation
-        let imageBytes: Uint8Array;
         let mimeType: 'image/png' | 'image/jpeg';
 
         if (referenceImage.startsWith('data:')) {
           // Base64 encoded image
           mimeType = referenceImage.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
           const base64Data = referenceImage.split(',')[1];
-          imageBytes = new Uint8Array(Buffer.from(base64Data, 'base64'));
+          
+          videoResult = await this.veoManager.generateImageToVideo(base64Data, mimeType, prompt, {
+            resolution: '720p', // Cost-optimized default
+            model: 'veo-3.0-fast-generate-preview'
+          });
         } else {
-          // File path
+          // File path - read and convert to base64 string format expected by Veo API
           const fs = await import('fs/promises');
           const imageBuffer = await fs.readFile(referenceImage);
-          imageBytes = new Uint8Array(imageBuffer);
+          const base64String = imageBuffer.toString('base64');
           mimeType = referenceImage.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+          
+          videoResult = await this.veoManager.generateImageToVideo(base64String, mimeType, prompt, {
+            resolution: '720p', // Cost-optimized default
+            model: 'veo-3.0-fast-generate-preview'
+          });
         }
-
-        videoResult = await this.veoManager.generateImageToVideo(imageBytes, mimeType, prompt, {
-          resolution: '720p', // Cost-optimized default
-          model: 'veo-3.0-fast-generate-preview'
-        });
       } else {
         // Text-to-video generation
         videoResult = await this.veoManager.generateTextToVideo(prompt, {

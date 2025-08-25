@@ -41,10 +41,10 @@ export interface PortfolioMetrics {
 }
 
 export class PortfolioLogger {
-  private logger: winston.Logger;
+  private logger!: winston.Logger;
   private achievements: TechnicalAchievement[] = [];
   private capabilities: SystemCapability[] = [];
-  private metrics: PortfolioMetrics;
+  private metrics!: PortfolioMetrics;
   private logDir: string;
 
   constructor(logDir: string = './logs/portfolio') {

@@ -57,5 +57,7 @@ export interface EnvironmentConfig {
   tempDirectory: string;
   maxConcurrentRequests: number;
   defaultBudgetLimit: number;
+  maxScenes?: number;
+  budgetLimit?: number;
   logLevel: 'debug' | 'info' | 'warn' | 'error';
 }

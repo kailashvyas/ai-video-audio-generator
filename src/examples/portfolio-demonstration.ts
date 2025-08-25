@@ -68,7 +68,7 @@ export class PortfolioDemonstration {
     this.costMonitor = new CostMonitor({
       budgetLimit: 100.00, // $100 budget
       warningThreshold: 0.8, // 80% warning
-      trackingEnabled: true
+      trackingPeriod: 'session'
     });
 
     this.portfolioLogger.logTechnicalAchievement({
@@ -81,7 +81,7 @@ export class PortfolioDemonstration {
 
     // Initialize Error Handler
     this.errorHandler = new ErrorHandler({
-      maxRetries: 3,
+      retryAttempts: 3,
       baseDelay: 1000,
       maxDelay: 30000,
       enableCircuitBreaker: true
@@ -96,10 +96,20 @@ export class PortfolioDemonstration {
     });
 
     // Initialize Content Pipeline Orchestrator
+    const envConfig = {
+      geminiApiKey: apiKey,
+      musicLmApiKey: process.env.MUSIC_LM_API_KEY || 'demo-key',
+      outputDirectory: './output',
+      tempDirectory: './temp',
+      maxConcurrentRequests: 5,
+      defaultBudgetLimit: 100.0,
+      logLevel: 'info' as const
+    };
+    
     this.orchestrator = new ContentPipelineOrchestrator(
-      this.apiManager,
-      this.characterManager,
-      this.costMonitor
+      envConfig,
+      this.costMonitor,
+      this.characterManager
     );
 
     this.portfolioLogger.logTechnicalAchievement({
@@ -417,4 +427,4 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   runPortfolioDemonstration().catch(console.error);
 }
 
-export { PortfolioDemonstration };
+// Export is already done above with the class declaration

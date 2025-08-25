@@ -22,16 +22,21 @@ async function demonstrateContentPipeline() {
 
   const costMonitor = new CostMonitor(costMonitorConfig);
   const characterManager = new CharacterDatabaseManager();
-  // Note: API manager will be used in future implementations
-  // const apiManager = new GeminiAPIManager({ 
-  //   apiKey: process.env.GEMINI_API_KEY || 'demo-key',
-  //   maxRequestsPerMinute: 60,
-  //   maxConcurrentRequests: 5,
-  //   defaultModel: 'gemini-pro'
-  // });
+  
+  // Create environment config
+  const envConfig = {
+    geminiApiKey: process.env.GEMINI_API_KEY || 'demo-key',
+    musicLmApiKey: process.env.MUSIC_LM_API_KEY || 'demo-key',
+    outputDirectory: './output',
+    tempDirectory: './temp',
+    maxConcurrentRequests: 5,
+    defaultBudgetLimit: 50.0,
+    logLevel: 'info' as const
+  };
 
   // Create orchestrator
   const orchestrator = new ContentPipelineOrchestrator(
+    envConfig,
     costMonitor,
     characterManager
   );

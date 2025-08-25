@@ -132,7 +132,7 @@ export class MusicGenerator {
         const sceneOptions: MusicOptions = {
           ...baseOptions,
           duration: scene.duration,
-          mood: scene.mood || baseOptions.mood
+          mood: scene.mood || baseOptions.mood || 'neutral'
         };
 
         const result = await this.generateBackgroundMusic(scene.description, sceneOptions);

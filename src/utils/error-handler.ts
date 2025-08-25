@@ -360,7 +360,7 @@ export class ErrorHandler {
     };
   }
 
-  private getErrorResolution(error: APIError, context: Record<string, any>): ErrorResolution {
+  private getErrorResolution(error: APIError, _context: Record<string, any>): ErrorResolution {
     // First try the retry handler's resolution
     const retryResolution = this.retryHandler.getErrorResolution(error);
     
@@ -426,7 +426,7 @@ export class ErrorHandler {
     return stages;
   }
 
-  private generateRecoveryOptions(project: ContentProject, currentStage: string): RecoveryOption[] {
+  private generateRecoveryOptions(_project: ContentProject, currentStage: string): RecoveryOption[] {
     const options: RecoveryOption[] = [];
 
     // Always offer retry option

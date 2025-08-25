@@ -15,7 +15,7 @@ const program = new Command();
 async function main() {
   try {
     // Initialize configuration
-    const envConfig = getValidatedConfig();
+    getValidatedConfig(); // Validate config but don't store unused
     const configManager = new ConfigManager();
     const cli = new ContentGeneratorCLI(configManager);
 

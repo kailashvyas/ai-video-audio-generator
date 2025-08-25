@@ -78,7 +78,7 @@ async function demonstrateImageGeneration() {
       console.log('');
 
     } catch (error) {
-      console.error(`❌ Failed to generate image for ${character.name}: ${error.message}\n`);
+      console.error(`❌ Failed to generate image for ${character.name}: ${error instanceof Error ? error.message : String(error)}\n`);
     }
   }
 
@@ -151,7 +151,7 @@ async function demonstrateImageStyles() {
       console.log(`✅ Generated ${style} style image (Quality: ${result.metadata.validationResult.quality.toFixed(2)})`);
 
     } catch (error) {
-      console.error(`❌ Failed to generate ${style} style: ${error.message}`);
+      console.error(`❌ Failed to generate ${style} style: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 }
@@ -212,7 +212,7 @@ async function demonstrateImageUpdate() {
     console.log(`   Quality improved from ${initialResult.metadata.validationResult.quality.toFixed(2)} to ${updatedResult.metadata.validationResult.quality.toFixed(2)}`);
 
   } catch (error) {
-    console.error(`❌ Update demonstration failed: ${error.message}`);
+    console.error(`❌ Update demonstration failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 

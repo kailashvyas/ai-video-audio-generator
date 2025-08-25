@@ -6,8 +6,8 @@
  */
 
 import { promises as fs } from 'fs';
-import { join, dirname, extname } from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import { join } from 'path';
+// UUID import removed as it's not used
 import type { 
   ContentProject, 
   Scene, 
@@ -212,7 +212,7 @@ export class ContentIntegrator {
    * Synchronizes audio tracks with video timing
    */
   private async synchronizeAudio(
-    project: ContentProject, 
+    _project: ContentProject, 
     videoSegments: VideoSegment[]
   ): Promise<AudioSegment[]> {
     const allAudioSegments: AudioSegment[] = [];
@@ -332,7 +332,7 @@ export class ContentIntegrator {
    */
   private async generateProjectSummary(
     project: ContentProject,
-    outputFiles: OutputFile[]
+    _outputFiles: OutputFile[]
   ): Promise<ProjectSummary> {
     const sourceMaterials = await this.collectSourceMaterials(project);
 
@@ -341,7 +341,7 @@ export class ContentIntegrator {
       title: project.script.title,
       description: project.script.description,
       totalDuration: project.script.estimatedDuration,
-      sceneCount: project.scenes.filter(s => s.status === 'completed').length,
+      sceneCount: project.scenes.filter((s: any) => s.status === 'completed').length,
       audioTrackCount: project.audioTracks.length,
       sourceMaterials,
       metadata: project.metadata,
@@ -363,7 +363,7 @@ export class ContentIntegrator {
           type: 'video',
           name: `Scene ${scene.id}`,
           path: scene.generatedVideo,
-          duration: scriptScene?.duration,
+          duration: scriptScene?.duration || 0,
           description: scene.videoPrompt,
         });
       }

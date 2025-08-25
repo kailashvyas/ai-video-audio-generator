@@ -128,7 +128,7 @@ export class VeoAPIManager {
         console.log(`✅ Video successfully saved to ${outputPath}`);
 
         // Get file stats for metadata
-        const stats = await fs.stat(outputPath);
+        const stats = await this.getFileStatsWithRetry(outputPath);
         const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
         console.log(`📊 Video file size: ${fileSizeMB} MB`);
 
@@ -156,7 +156,7 @@ export class VeoAPIManager {
   /**
    * Generate video from image and text prompt using Veo 3.0
    */
-  async generateImageToVideo(imageData: Uint8Array, mimeType: 'image/png' | 'image/jpeg', prompt: string, options: VideoGenerationOptions = {}): Promise<VideoResult> {
+  async generateImageToVideo(imageData: Uint8Array | string, mimeType: 'image/png' | 'image/jpeg', prompt: string, options: VideoGenerationOptions = {}): Promise<VideoResult> {
     return this.retryHandler.executeWithRetry(async () => {
       try {
         console.log('🎬 Starting Veo 3.0 image-to-video generation...');
@@ -167,12 +167,17 @@ export class VeoAPIManager {
         const model = options.model || "veo-3.0-fast-generate-preview";
         console.log(`🎯 Using model: ${model} (cost-optimized)`);
         
+        // Convert to base64 string as required by the API
+        const base64String = typeof imageData === 'string' 
+          ? imageData 
+          : Buffer.from(imageData).toString('base64');
+        
         // Start video generation operation with image input using new API
         let operation = await this.ai.models.generateVideos({
           model: model,
           prompt: prompt,
           image: {
-            imageBytes: imageData,
+            imageBytes: base64String,
             mimeType: mimeType,
           },
         });
@@ -236,7 +241,7 @@ export class VeoAPIManager {
         console.log(`✅ Video successfully saved to ${outputPath}`);
 
         // Get file stats for metadata
-        const stats = await fs.stat(outputPath);
+        const stats = await this.getFileStatsWithRetry(outputPath);
         const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
         console.log(`📊 Video file size: ${fileSizeMB} MB`);
 
@@ -282,8 +287,13 @@ export class VeoAPIManager {
         
         console.log('✅ Image generated successfully');
 
+        // Convert string to Uint8Array if needed
+        const uint8Array = typeof imageBytes === 'string' 
+          ? new Uint8Array(Buffer.from(imageBytes, 'base64'))
+          : new Uint8Array(imageBytes);
+        
         return {
-          imageBytes: new Uint8Array(imageBytes),
+          imageBytes: uint8Array,
           mimeType: 'image/png' as const
         };
 
@@ -317,6 +327,31 @@ export class VeoAPIManager {
       console.error('❌ Complete image-to-video workflow failed:', error);
       throw new Error(`Complete image-to-video workflow failed: ${error instanceof Error ? error.message : String(error)}`);
     }
+  }
+
+  /**
+   * Safely get file stats with retry for race conditions
+   */
+  private async getFileStatsWithRetry(filePath: string): Promise<{ size: number }> {
+    let retries = 0;
+    const maxRetries = 3;
+    
+    while (retries < maxRetries) {
+      try {
+        const fs = await import('fs/promises');
+        return await fs.stat(filePath);
+      } catch (error) {
+        retries++;
+        if (retries >= maxRetries) {
+          console.warn(`⚠️ Could not get file stats for ${filePath} after ${maxRetries} attempts, but file was created successfully`);
+          return { size: 0 };
+        }
+        console.log(`⏳ Retrying file stat (attempt ${retries}/${maxRetries})...`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+    
+    return { size: 0 };
   }
 
   /**

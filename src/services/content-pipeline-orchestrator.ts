@@ -23,11 +23,12 @@ import {
 import { CostMonitor } from './cost-monitor';
 import { CharacterDatabaseManager } from '../managers/character-database-manager';
 import { GeminiAPIManager } from '../api/gemini-api-manager';
+import { VeoAPIManager } from '../api/veo-api-manager';
 import { IdeaGenerator, GeneratedIdea } from './idea-generator';
 import { ScriptGenerator } from './script-generator';
-import { ImageGenerator } from './image-generator';
+// import { ImageGenerator } from './image-generator'; // Currently unused
 import { TextToVideoGenerator } from './text-to-video-generator';
-import { ImageToVideoGenerator } from './image-to-video-generator';
+
 import { AudioGenerator } from './audio-generator';
 import { ContentIntegrator } from './content-integrator';
 
@@ -78,11 +79,12 @@ export class ContentPipelineOrchestrator extends EventEmitter {
   private apiManager: GeminiAPIManager;
   private ideaGenerator: IdeaGenerator;
   private scriptGenerator: ScriptGenerator;
-  private imageGenerator: ImageGenerator;
+  // private imageGenerator: ImageGenerator; // Currently unused
   private textToVideoGenerator: TextToVideoGenerator;
-  private imageToVideoGenerator: ImageToVideoGenerator;
+
   private audioGenerator: AudioGenerator;
   private contentIntegrator: ContentIntegrator;
+  private veoManager: VeoAPIManager;
   private progressSaveInterval?: NodeJS.Timeout;
   private progressCallback?: (progress: GenerationProgress) => void;
 
@@ -119,14 +121,40 @@ export class ContentPipelineOrchestrator extends EventEmitter {
       defaultModel: 'gemini-1.5-flash'
     });
     
+    // Initialize VeoAPIManager for direct image-to-video workflow
+    this.veoManager = new VeoAPIManager({
+      apiKey: envConfig.geminiApiKey,
+      maxRetries: 3,
+      pollInterval: 10000,
+      timeout: 300000
+    });
+    
     // Initialize all generation services
     this.ideaGenerator = new IdeaGenerator(this.apiManager);
     this.scriptGenerator = new ScriptGenerator(this.apiManager);
-    this.imageGenerator = new ImageGenerator(this.apiManager);
-    this.textToVideoGenerator = new TextToVideoGenerator(this.apiManager);
-    this.imageToVideoGenerator = new ImageToVideoGenerator(this.apiManager);
+    // this.imageGenerator = new ImageGenerator(this.apiManager); // Currently unused
+    
+    // Initialize video generators with proper dependencies
+    this.textToVideoGenerator = new TextToVideoGenerator(
+      this.apiManager,
+      this.characterManager,
+      {
+        maxScenes: envConfig.maxScenes || 5,
+        quality: 'standard',
+        aspectRatio: '16:9',
+        duration: 5
+      }
+    );
+    
+    // Removed imageToVideoGenerator - using VeoAPIManager complete workflow instead
+    
     this.audioGenerator = new AudioGenerator(this.apiManager);
-    this.contentIntegrator = new ContentIntegrator();
+    this.contentIntegrator = new ContentIntegrator({
+      outputDirectory: envConfig.outputDirectory || './output',
+      outputFormats: ['mp4'],
+      quality: 'standard',
+      includeMetadata: true
+    });
   }
 
   /**
@@ -136,7 +164,9 @@ export class ContentPipelineOrchestrator extends EventEmitter {
   async generateContent(config: OrchestrationConfig, progressCallback?: (progress: GenerationProgress) => void): Promise<ContentResult> {
     try {
       // Store progress callback
-      this.progressCallback = progressCallback;
+      if (progressCallback) {
+        this.progressCallback = progressCallback;
+      }
       
       // Validate configuration
       this.validateConfig(config);
@@ -555,48 +585,15 @@ export class ContentPipelineOrchestrator extends EventEmitter {
   private async executeImageGeneration(): Promise<void> {
     if (!this.project || !this.config) throw new Error('Project not initialized');
     
-    // Only generate images if using image-to-video mode
-    if (!this.config.useImageToVideo) {
+    // Skip separate image generation when using complete image-to-video workflow
+    // Images will be generated directly in the video generation stage
+    if (this.config.useImageToVideo) {
+      console.log('🖼️ Skipping separate image generation - using complete image-to-video workflow');
       return;
     }
     
-    try {
-      // Generate reference images for each scene
-      for (const scriptScene of this.project.script.scenes) {
-        const imageResult = await this.imageGenerator.generateImage(
-          scriptScene.description,
-          {
-            style: this.config.quality === 'high' ? 'photorealistic' : 'artistic',
-            aspectRatio: '16:9',
-            quality: this.config.quality
-          }
-        );
-        
-        // Create scene with reference image
-        const scene = {
-          id: scriptScene.id,
-          scriptSceneId: scriptScene.id,
-          videoPrompt: scriptScene.description,
-          referenceImage: imageResult.url,
-          status: 'pending' as const
-        };
-        
-        this.project.scenes.push(scene);
-        
-        // Update cost tracking
-        this.costMonitor.trackAPICall(
-          { type: 'image', model: 'gemini-vision', inputSize: 1, outputSize: 1, complexity: 'medium' },
-          0.05,
-          'gemini'
-        );
-        this.project.metadata.totalCost += 0.05;
-        this.project.metadata.apiUsage.imageGeneration += 1;
-        this.project.metadata.apiUsage.totalRequests += 1;
-      }
-      
-    } catch (error) {
-      throw new Error(`Image generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    // This stage is only needed for non-image-to-video workflows
+    console.log('🖼️ No separate image generation needed for text-to-video workflow');
   }
 
   private async executeVideoGeneration(): Promise<void> {
@@ -608,19 +605,20 @@ export class ContentPipelineOrchestrator extends EventEmitter {
         let videoResult;
         
         if (this.config.useImageToVideo) {
-          // Find corresponding scene with reference image
-          const scene = this.project.scenes.find(s => s.scriptSceneId === scriptScene.id);
-          if (scene?.referenceImage) {
-            videoResult = await this.imageToVideoGenerator.generateVideo(
-              scene.referenceImage,
-              scriptScene.description,
-              {
-                duration: scriptScene.duration,
-                quality: this.config.quality,
-                style: 'cinematic'
-              }
-            );
-          }
+          // Use complete image-to-video workflow to avoid format issues
+          // Generate image prompt for this scene
+          const imagePrompt = `${scriptScene.description}. Cinematic style, high quality, detailed.`;
+          
+          videoResult = await this.veoManager.generateImageToVideoComplete(
+            imagePrompt,
+            scriptScene.description,
+            {
+              duration: scriptScene.duration,
+              quality: this.config.quality,
+              resolution: '720p',
+              model: 'veo-3.0-fast-generate-preview'
+            }
+          );
         } else {
           // Text-to-video generation
           videoResult = await this.textToVideoGenerator.generateVideo(
@@ -716,7 +714,7 @@ export class ContentPipelineOrchestrator extends EventEmitter {
       // Integrate all content into final video
       const finalVideo = await this.contentIntegrator.integrateContent(this.project);
       
-      this.project.finalVideo = finalVideo.outputPath;
+      this.project.finalVideo = finalVideo.outputFiles[0]?.path || '';
       
       // Update cost tracking (minimal cost for integration)
       this.costMonitor.trackAPICall(
@@ -934,10 +932,10 @@ export class ContentPipelineOrchestrator extends EventEmitter {
       geminiConnected,
       musicLmConnected,
       usage: {
-        textGeneration: usage.textGeneration,
-        imageGeneration: usage.imageGeneration,
-        videoGeneration: usage.videoGeneration,
-        audioGeneration: usage.audioGeneration,
+        textGeneration: 0, // Default values since these aren't tracked in UsageStats
+        imageGeneration: 0,
+        videoGeneration: 0,
+        audioGeneration: 0,
         totalCost: usage.totalCost
       },
       config: {

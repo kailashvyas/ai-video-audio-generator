@@ -6,7 +6,7 @@ import inquirer from 'inquirer';
 import chalk from 'chalk';
 import ora from 'ora';
 import { ContentConfig, ContentResult, GenerationProgress } from '../types';
-import { ContentPipelineOrchestrator } from '../services/content-pipeline-orchestrator';
+import { ContentPipelineOrchestrator, OrchestrationConfig } from '../services/content-pipeline-orchestrator';
 import { ConfigManager } from './config-manager';
 import { ProgressDisplay } from './progress-display';
 import { getValidatedConfig } from '../config';
@@ -83,56 +83,68 @@ export class ContentGeneratorCLI {
       console.log(chalk.blue.bold('🎬 Interactive Content Generation Wizard\n'));
 
       // Welcome and topic selection
-      const answers = await inquirer.prompt([
-        {
-          type: 'input',
-          name: 'topic',
-          message: 'What topic would you like to create content about?',
-          validate: (input: string) => input.trim().length > 0 || 'Please enter a topic'
-        },
-        {
-          type: 'number',
-          name: 'maxScenes',
-          message: 'Maximum number of video scenes to generate:',
-          default: 5,
-          validate: (input: number) => input > 0 && input <= 20 || 'Please enter a number between 1 and 20'
-        },
-        {
-          type: 'number',
-          name: 'budgetLimit',
-          message: 'Budget limit (USD):',
-          default: 50.00,
-          validate: (input: number) => input > 0 || 'Please enter a positive number'
-        },
-        {
-          type: 'confirm',
-          name: 'useImageToVideo',
-          message: 'Use image-to-video generation for better character consistency?',
-          default: false
-        },
-        {
-          type: 'list',
-          name: 'quality',
-          message: 'Generation quality:',
-          choices: [
-            { name: 'Draft (faster, lower cost)', value: 'draft' },
-            { name: 'Standard (balanced)', value: 'standard' },
-            { name: 'High (slower, higher cost)', value: 'high' }
-          ],
-          default: 'standard'
-        },
-        {
-          type: 'checkbox',
-          name: 'outputFormats',
-          message: 'Output formats:',
-          choices: [
-            { name: 'MP4 (recommended)', value: 'mp4', checked: true },
-            { name: 'WebM', value: 'webm' },
-            { name: 'MOV', value: 'mov' }
-          ],
-          validate: (input: string[]) => input.length > 0 || 'Please select at least one format'
-        }
-      ]);
+      const topicAnswer = await inquirer.prompt({
+        type: 'input',
+        name: 'topic',
+        message: 'What topic would you like to create content about?',
+        validate: (input: string) => input.trim().length > 0 || 'Please enter a topic'
+      });
+
+      const scenesAnswer = await inquirer.prompt({
+        type: 'number',
+        name: 'maxScenes',
+        message: 'Maximum number of video scenes to generate:',
+        default: 5,
+        validate: (input: number | undefined) => (input && input > 0 && input <= 20) || 'Please enter a number between 1 and 20'
+      });
+
+      const budgetAnswer = await inquirer.prompt({
+        type: 'number',
+        name: 'budgetLimit',
+        message: 'Budget limit (USD):',
+        default: 50.00,
+        validate: (input: number | undefined) => (input && input > 0) || 'Please enter a positive number'
+      });
+
+      const imageToVideoAnswer = await inquirer.prompt({
+        type: 'confirm',
+        name: 'useImageToVideo',
+        message: 'Use image-to-video generation for better character consistency?',
+        default: false
+      });
+
+      const qualityAnswer = await inquirer.prompt({
+        type: 'list',
+        name: 'quality',
+        message: 'Generation quality:',
+        choices: [
+          { name: 'Draft (faster, lower cost)', value: 'draft' },
+          { name: 'Standard (balanced)', value: 'standard' },
+          { name: 'High (slower, higher cost)', value: 'high' }
+        ],
+        default: 'standard'
+      });
+
+      const formatsAnswer = await inquirer.prompt({
+        type: 'checkbox',
+        name: 'outputFormats',
+        message: 'Output formats:',
+        choices: [
+          { name: 'MP4 (recommended)', value: 'mp4', checked: true },
+          { name: 'WebM', value: 'webm' },
+          { name: 'MOV', value: 'mov' }
+        ],
+        validate: (input: readonly any[]) => input.length > 0 || 'Please select at least one format'
+      });
+
+      const answers = {
+        topic: topicAnswer.topic,
+        maxScenes: scenesAnswer.maxScenes,
+        budgetLimit: budgetAnswer.budgetLimit,
+        useImageToVideo: imageToVideoAnswer.useImageToVideo,
+        quality: qualityAnswer.quality,
+        outputFormats: formatsAnswer.outputFormats
+      };
 
       const contentConfig: ContentConfig = {
         topic: answers.topic,
@@ -272,14 +284,19 @@ export class ContentGeneratorCLI {
    * Parse content options from CLI arguments
    */
   private async parseContentOptions(options: CLIOptions, config: any): Promise<ContentConfig> {
-    return {
-      topic: options.topic,
+    const contentConfig: ContentConfig = {
       maxScenes: parseInt(options.scenes || config.defaultMaxScenes || '5'),
       budgetLimit: parseFloat(options.budget || config.defaultBudgetLimit || '50.00'),
       useImageToVideo: options.imageToVideo || config.defaultUseImageToVideo || false,
       outputFormats: options.formats ? options.formats.split(',') : (config.defaultOutputFormats || ['mp4']),
       quality: (options.quality as any) || config.defaultQuality || 'standard'
     };
+    
+    if (options.topic) {
+      contentConfig.topic = options.topic;
+    }
+    
+    return contentConfig;
   }
 
   /**
@@ -325,7 +342,14 @@ export class ContentGeneratorCLI {
     };
 
     try {
-      const result = await this.orchestrator.generateContent(config, progressCallback);
+      // Convert ContentConfig to OrchestrationConfig (OrchestrationConfig extends ContentConfig)
+      const orchestrationConfig: OrchestrationConfig = {
+        ...config,
+        enableAutoSave: true,
+        saveProgressInterval: 5000,
+        maxRetries: 3
+      };
+      const result = await this.orchestrator.generateContent(orchestrationConfig, progressCallback);
       
       this.progressDisplay.complete();
       

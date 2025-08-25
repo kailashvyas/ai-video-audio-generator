@@ -5,10 +5,9 @@
  * into final multimedia output with multiple format support.
  */
 
-import { ContentIntegrator } from '../services/content-integrator';
+import { ContentIntegrator, type IntegrationConfig } from '../services/content-integrator';
 import type { 
   ContentProject, 
-  IntegrationConfig,
   Scene,
   AudioTrack,
   Script,

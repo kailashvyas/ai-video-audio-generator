@@ -79,7 +79,7 @@ export class ImageGenerator {
       
       return storedImage;
     } catch (error) {
-      throw new Error(`Failed to generate character image: ${error.message}`);
+      throw new Error(`Failed to generate character image: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

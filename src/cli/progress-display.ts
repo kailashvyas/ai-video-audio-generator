@@ -36,7 +36,8 @@ export class ProgressDisplay {
     this.spinner.text = `${stageText} ${progressBar} (${overallProgress}%)`;
     
     // Change spinner color based on stage
-    this.spinner.color = this.getStageColor(progress.currentStage);
+    const color = this.getStageColor(progress.currentStage) as any;
+    this.spinner.color = color;
     
     // Log stage transitions
     if (this.currentStage !== progress.currentStage) {
