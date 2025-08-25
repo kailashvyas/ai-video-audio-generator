@@ -119,6 +119,20 @@ export class ImageToVideoGenerator {
   }
 
   /**
+   * Generate video from image and description (simplified interface for orchestrator)
+   */
+  async generateVideo(referenceImage: string, description: string, config: any): Promise<VideoResult> {
+    // Use the new Veo image-to-video method
+    const videoResult = await this.apiManager.generateImageToVideo(referenceImage, description, {
+      duration: config.duration || 5,
+      quality: config.quality || 'standard',
+      aspectRatio: config.aspectRatio || '16:9'
+    });
+
+    return videoResult;
+  }
+
+  /**
    * Generate a single video from a scene using reference image
    */
   async generateVideoFromImage(scene: Scene, referenceImage: string): Promise<VideoResult> {

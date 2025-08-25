@@ -22,8 +22,14 @@ import {
 } from '../types';
 import { CostMonitor } from './cost-monitor';
 import { CharacterDatabaseManager } from '../managers/character-database-manager';
-// Note: GeminiAPIManager will be used in future implementations
-// import { GeminiAPIManager } from '../api/gemini-api-manager';
+import { GeminiAPIManager } from '../api/gemini-api-manager';
+import { IdeaGenerator, GeneratedIdea } from './idea-generator';
+import { ScriptGenerator } from './script-generator';
+import { ImageGenerator } from './image-generator';
+import { TextToVideoGenerator } from './text-to-video-generator';
+import { ImageToVideoGenerator } from './image-to-video-generator';
+import { AudioGenerator } from './audio-generator';
+import { ContentIntegrator } from './content-integrator';
 
 export interface SystemStatus {
   geminiConnected: boolean;
@@ -66,10 +72,17 @@ export class ContentPipelineOrchestrator extends EventEmitter {
   private state: PipelineState | null = null;
   private project: ContentProject | null = null;
   private config: OrchestrationConfig | null = null;
+  private generatedIdea: GeneratedIdea | null = null; // Store the full GeneratedIdea object
   private costMonitor: CostMonitor;
   private characterManager: CharacterDatabaseManager;
-  // Note: API manager will be used in future stage implementations
-  // private apiManager: GeminiAPIManager;
+  private apiManager: GeminiAPIManager;
+  private ideaGenerator: IdeaGenerator;
+  private scriptGenerator: ScriptGenerator;
+  private imageGenerator: ImageGenerator;
+  private textToVideoGenerator: TextToVideoGenerator;
+  private imageToVideoGenerator: ImageToVideoGenerator;
+  private audioGenerator: AudioGenerator;
+  private contentIntegrator: ContentIntegrator;
   private progressSaveInterval?: NodeJS.Timeout;
   private progressCallback?: (progress: GenerationProgress) => void;
 
@@ -91,8 +104,29 @@ export class ContentPipelineOrchestrator extends EventEmitter {
     characterManager?: CharacterDatabaseManager
   ) {
     super();
-    this.costMonitor = costMonitor || new CostMonitor(envConfig);
+    this.costMonitor = costMonitor || new CostMonitor({
+      budgetLimit: envConfig.budgetLimit || 10.0,
+      warningThreshold: 0.8,
+      trackingPeriod: 'session'
+    });
     this.characterManager = characterManager || new CharacterDatabaseManager();
+    
+    // Initialize API manager and services
+    this.apiManager = new GeminiAPIManager({
+      apiKey: envConfig.geminiApiKey,
+      maxRequestsPerMinute: 60,
+      maxConcurrentRequests: envConfig.maxConcurrentRequests,
+      defaultModel: 'gemini-1.5-flash'
+    });
+    
+    // Initialize all generation services
+    this.ideaGenerator = new IdeaGenerator(this.apiManager);
+    this.scriptGenerator = new ScriptGenerator(this.apiManager);
+    this.imageGenerator = new ImageGenerator(this.apiManager);
+    this.textToVideoGenerator = new TextToVideoGenerator(this.apiManager);
+    this.imageToVideoGenerator = new ImageToVideoGenerator(this.apiManager);
+    this.audioGenerator = new AudioGenerator(this.apiManager);
+    this.contentIntegrator = new ContentIntegrator();
   }
 
   /**
@@ -424,61 +458,336 @@ export class ContentPipelineOrchestrator extends EventEmitter {
     });
   }
 
-  // Placeholder stage execution methods - these would be implemented with actual logic
+  // Real stage execution methods with actual API calls
   private async executeIdeaGeneration(): Promise<void> {
-    // Placeholder for idea generation logic
-    await this.simulateStageWork('idea_generation');
+    if (!this.project || !this.config) throw new Error('Project not initialized');
+    
+    try {
+      const idea = await this.ideaGenerator.generateIdea(
+        this.config.topic,
+        {
+          contentType: 'entertainment',
+          targetAudience: 'general',
+          duration: 'medium',
+          creativity: this.config.quality === 'high' ? 'high' : 'medium'
+        }
+      );
+      
+      // Store the idea description as string (as expected by ContentProject)
+      this.project.idea = idea.description;
+      this.project.topic = idea.title;
+      
+      // Store the full idea object for script generation
+      this.generatedIdea = idea;
+      
+      // Update cost tracking
+      this.costMonitor.trackAPICall(
+        { type: 'text', model: 'gemini-1.5-flash', inputSize: 100, outputSize: 50, complexity: 'low' },
+        0.01,
+        'gemini'
+      );
+      this.project.metadata.totalCost += 0.01;
+      this.project.metadata.apiUsage.textGeneration += 1;
+      this.project.metadata.apiUsage.totalRequests += 1;
+      
+    } catch (error) {
+      throw new Error(`Idea generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   private async executeScriptCreation(): Promise<void> {
-    // Placeholder for script creation logic
-    await this.simulateStageWork('script_creation');
+    if (!this.project || !this.config || !this.generatedIdea) throw new Error('Project not initialized or idea not generated');
+    
+    try {
+      const script = await this.scriptGenerator.generateScript(
+        this.generatedIdea,
+        {
+          maxScenes: this.config.maxScenes,
+          sceneLength: 'medium',
+          narrativeStyle: 'storytelling',
+          includeDialogue: true
+        }
+      );
+      
+      this.project.script = script;
+      
+      // Update cost tracking
+      this.costMonitor.trackAPICall(
+        { type: 'text', model: 'gemini-1.5-flash', inputSize: 200, outputSize: 100, complexity: 'medium' },
+        0.02,
+        'gemini'
+      );
+      this.project.metadata.totalCost += 0.02;
+      this.project.metadata.apiUsage.textGeneration += 1;
+      this.project.metadata.apiUsage.totalRequests += 1;
+      
+    } catch (error) {
+      throw new Error(`Script creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   private async executeCharacterAnalysis(): Promise<void> {
-    // Placeholder for character analysis logic
-    await this.simulateStageWork('character_analysis');
+    if (!this.project) throw new Error('Project not initialized');
+    
+    try {
+      // Extract characters from script
+      const characters = await this.characterManager.extractCharactersFromScript(
+        this.project.script.scenes
+      );
+      
+      this.project.characters = characters;
+      
+      // Update cost tracking (minimal cost for character analysis)
+      this.costMonitor.trackAPICall(
+        { type: 'text', model: 'gemini-1.5-flash', inputSize: 50, outputSize: 25, complexity: 'low' },
+        0.005,
+        'gemini'
+      );
+      this.project.metadata.totalCost += 0.005;
+      this.project.metadata.apiUsage.textGeneration += 1;
+      this.project.metadata.apiUsage.totalRequests += 1;
+      
+    } catch (error) {
+      throw new Error(`Character analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   private async executeImageGeneration(): Promise<void> {
-    // Placeholder for image generation logic
-    await this.simulateStageWork('image_generation');
+    if (!this.project || !this.config) throw new Error('Project not initialized');
+    
+    // Only generate images if using image-to-video mode
+    if (!this.config.useImageToVideo) {
+      return;
+    }
+    
+    try {
+      // Generate reference images for each scene
+      for (const scriptScene of this.project.script.scenes) {
+        const imageResult = await this.imageGenerator.generateImage(
+          scriptScene.description,
+          {
+            style: this.config.quality === 'high' ? 'photorealistic' : 'artistic',
+            aspectRatio: '16:9',
+            quality: this.config.quality
+          }
+        );
+        
+        // Create scene with reference image
+        const scene = {
+          id: scriptScene.id,
+          scriptSceneId: scriptScene.id,
+          videoPrompt: scriptScene.description,
+          referenceImage: imageResult.url,
+          status: 'pending' as const
+        };
+        
+        this.project.scenes.push(scene);
+        
+        // Update cost tracking
+        this.costMonitor.trackAPICall(
+          { type: 'image', model: 'gemini-vision', inputSize: 1, outputSize: 1, complexity: 'medium' },
+          0.05,
+          'gemini'
+        );
+        this.project.metadata.totalCost += 0.05;
+        this.project.metadata.apiUsage.imageGeneration += 1;
+        this.project.metadata.apiUsage.totalRequests += 1;
+      }
+      
+    } catch (error) {
+      throw new Error(`Image generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   private async executeVideoGeneration(): Promise<void> {
-    // Placeholder for video generation logic
-    await this.simulateStageWork('video_generation');
+    if (!this.project || !this.config) throw new Error('Project not initialized');
+    
+    try {
+      // Generate videos for each scene
+      for (const scriptScene of this.project.script.scenes) {
+        let videoResult;
+        
+        if (this.config.useImageToVideo) {
+          // Find corresponding scene with reference image
+          const scene = this.project.scenes.find(s => s.scriptSceneId === scriptScene.id);
+          if (scene?.referenceImage) {
+            videoResult = await this.imageToVideoGenerator.generateVideo(
+              scene.referenceImage,
+              scriptScene.description,
+              {
+                duration: scriptScene.duration,
+                quality: this.config.quality,
+                style: 'cinematic'
+              }
+            );
+          }
+        } else {
+          // Text-to-video generation
+          videoResult = await this.textToVideoGenerator.generateVideo(
+            scriptScene.description,
+            {
+              duration: scriptScene.duration,
+              quality: this.config.quality,
+              style: 'cinematic'
+            }
+          );
+        }
+        
+        if (videoResult) {
+          // Update or create scene
+          let scene = this.project.scenes.find(s => s.scriptSceneId === scriptScene.id);
+          if (!scene) {
+            scene = {
+              id: scriptScene.id,
+              scriptSceneId: scriptScene.id,
+              videoPrompt: scriptScene.description,
+              status: 'pending' as const
+            };
+            this.project.scenes.push(scene);
+          }
+          
+          scene.generatedVideo = videoResult.url;
+          scene.status = 'completed';
+          
+          // Update cost tracking
+          const videoCost = this.config.useImageToVideo ? 0.15 : 0.10;
+          this.costMonitor.trackAPICall(
+            { type: 'video', model: 'veo', inputSize: scriptScene.duration, outputSize: 1, complexity: 'high' },
+            videoCost,
+            'veo'
+          );
+          this.project.metadata.totalCost += videoCost;
+          this.project.metadata.apiUsage.videoGeneration += 1;
+          this.project.metadata.apiUsage.totalRequests += 1;
+        }
+      }
+      
+    } catch (error) {
+      throw new Error(`Video generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   private async executeAudioGeneration(): Promise<void> {
-    // Placeholder for audio generation logic
-    await this.simulateStageWork('audio_generation');
+    if (!this.project || !this.config) throw new Error('Project not initialized');
+    
+    try {
+      // Generate audio for each scene with dialogue
+      for (const scriptScene of this.project.script.scenes) {
+        if (scriptScene.dialogue && scriptScene.dialogue.length > 0) {
+          const audioResult = await this.audioGenerator.generateAudio(
+            scriptScene.dialogue.join(' '),
+            {
+              voice: 'neutral',
+              speed: 1.0,
+              quality: this.config.quality
+            }
+          );
+          
+          const audioTrack = {
+            type: 'narration' as const,
+            content: audioResult.url,
+            duration: scriptScene.duration,
+            volume: 0.8
+          };
+          
+          this.project.audioTracks.push(audioTrack);
+          
+          // Update cost tracking
+          this.costMonitor.trackAPICall(
+            { type: 'audio', model: 'text-to-speech', inputSize: scriptScene.dialogue.join(' ').length, outputSize: scriptScene.duration, complexity: 'medium' },
+            0.03,
+            'gemini'
+          );
+          this.project.metadata.totalCost += 0.03;
+          this.project.metadata.apiUsage.audioGeneration += 1;
+          this.project.metadata.apiUsage.totalRequests += 1;
+        }
+      }
+      
+    } catch (error) {
+      throw new Error(`Audio generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   private async executeContentIntegration(): Promise<void> {
-    // Placeholder for content integration logic
-    await this.simulateStageWork('content_integration');
+    if (!this.project || !this.config) throw new Error('Project not initialized');
+    
+    try {
+      // Integrate all content into final video
+      const finalVideo = await this.contentIntegrator.integrateContent(this.project);
+      
+      this.project.finalVideo = finalVideo.outputPath;
+      
+      // Update cost tracking (minimal cost for integration)
+      this.costMonitor.trackAPICall(
+        { type: 'text', model: 'integration', inputSize: 10, outputSize: 5, complexity: 'low' },
+        0.01,
+        'system'
+      );
+      this.project.metadata.totalCost += 0.01;
+      this.project.metadata.apiUsage.totalRequests += 1;
+      
+    } catch (error) {
+      throw new Error(`Content integration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   private async executeFinalization(): Promise<void> {
-    // Placeholder for finalization logic
-    await this.simulateStageWork('finalization');
+    if (!this.project) throw new Error('Project not initialized');
+    
+    try {
+      // Update project metadata
+      this.project.metadata.updatedAt = new Date();
+      
+      // Ensure output directory exists
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      
+      const outputDir = path.join(this.envConfig.outputDirectory, this.project.id);
+      await fs.mkdir(outputDir, { recursive: true });
+      
+      // Save project metadata
+      const projectFile = path.join(outputDir, 'project.json');
+      await fs.writeFile(projectFile, JSON.stringify(this.project, null, 2));
+      
+    } catch (error) {
+      throw new Error(`Finalization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
-  private async simulateStageWork(stage: GenerationStage): Promise<void> {
-    // Simulate work with a small delay
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    this.emit('stageProgress', { 
-      stage, 
-      progress: 1.0,
-      message: `${stage} completed` 
-    });
-  }
+
 
   private calculateCurrentStageProgress(): number {
-    // Simplified progress calculation - would be more sophisticated in real implementation
-    return 0.5; // Assume 50% progress for current stage
+    if (!this.state) return 0;
+    
+    // Calculate progress based on elapsed time in current stage
+    const elapsed = Date.now() - this.state.stageStartTime.getTime();
+    const estimatedStageTime = this.getEstimatedStageTime(this.state.currentStage);
+    
+    return Math.min(elapsed / estimatedStageTime, 0.95); // Cap at 95% until completion
+  }
+  
+  private getEstimatedStageTime(stage: GenerationStage): number {
+    // Estimated time in milliseconds for each stage
+    const stageTimes = {
+      'idea_generation': 5000,      // 5 seconds
+      'script_creation': 10000,     // 10 seconds
+      'character_analysis': 3000,   // 3 seconds
+      'image_generation': 15000,    // 15 seconds per scene
+      'video_generation': 30000,    // 30 seconds per scene
+      'audio_generation': 10000,    // 10 seconds per scene
+      'content_integration': 20000, // 20 seconds
+      'finalization': 5000          // 5 seconds
+    };
+    
+    let baseTime = stageTimes[stage] || 10000;
+    
+    // Multiply by number of scenes for generation stages
+    if (['image_generation', 'video_generation', 'audio_generation'].includes(stage) && this.config) {
+      baseTime *= this.config.maxScenes;
+    }
+    
+    return baseTime;
   }
 
   private estimateRemainingTime(): number | undefined {

@@ -3,8 +3,10 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { APIOperation, APIError, ImageResult, VideoResult, AudioResult, VoiceConfig, UsageStats } from '../types';
 import { RetryHandler } from '../utils/retry-handler';
+import { VeoAPIManager } from './veo-api-manager';
 
 export interface GeminiConfig {
   apiKey: string;
@@ -22,6 +24,8 @@ export interface TokenBucket {
 
 export class GeminiAPIManager {
   private genAI: GoogleGenerativeAI;
+  private genAINew: GoogleGenAI; // New SDK for Veo 3.0 and Imagen
+  private veoManager: VeoAPIManager;
   private config: GeminiConfig;
   private tokenBucket: TokenBucket;
   private activeRequests: number = 0;
@@ -31,6 +35,15 @@ export class GeminiAPIManager {
   constructor(config: GeminiConfig) {
     this.config = config;
     this.genAI = new GoogleGenerativeAI(config.apiKey);
+    this.genAINew = new GoogleGenAI({}); // New SDK for Veo 3.0 and Imagen
+    
+    // Initialize Veo API manager for video generation with updated config
+    this.veoManager = new VeoAPIManager({
+      apiKey: config.apiKey,
+      maxRetries: 3,
+      pollInterval: 10000,
+      timeout: 300000
+    });
     
     // Initialize token bucket for rate limiting
     this.tokenBucket = {
@@ -89,9 +102,9 @@ export class GeminiAPIManager {
   }
 
   /**
-   * Generate image using Gemini Vision
+   * Generate image using Imagen 3.0
    */
-  async generateImage(prompt: string, model: string = 'gemini-2.0-flash-exp'): Promise<ImageResult> {
+  async generateImage(prompt: string, model: string = 'imagen-3.0-generate-002'): Promise<ImageResult> {
     return this.retryHandler.executeWithRetry(async () => {
       await this.checkRateLimit();
       
@@ -107,98 +120,179 @@ export class GeminiAPIManager {
         const cost = this.estimateCost(operation);
         this.updateUsageStats(cost, prompt.length);
 
-        const generativeModel = this.genAI.getGenerativeModel({ model });
+        console.log('🖼️ Generating image with Imagen 3.0...');
+        console.log(`📝 Prompt: ${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}`);
+
+        // Use the new Imagen API through the updated SDK
+        const imagenResponse = await this.genAINew.models.generateImages({
+          model: model,
+          prompt: prompt,
+        });
+
+        if (!imagenResponse.generatedImages?.[0]?.image?.imageBytes) {
+          throw new Error('No image generated in response');
+        }
+
+        const imageBytes = imagenResponse.generatedImages[0].image.imageBytes;
         
-        // For image generation, we'll use a specific prompt format
-        const imagePrompt = `Generate an image: ${prompt}`;
-        await generativeModel.generateContent(imagePrompt);
-        // Note: In a real implementation, this would extract image data from the response
+        // Save image to local file
+        const timestamp = Date.now();
+        const filename = `imagen-generated-${timestamp}.png`;
+        const outputPath = `./output/images/${filename}`;
+
+        // Ensure output directory exists
+        const fs = await import('fs/promises');
+        const path = await import('path');
+        await fs.mkdir(path.dirname(outputPath), { recursive: true });
+
+        // Write image bytes to file
+        await fs.writeFile(outputPath, imageBytes);
         
-        // Note: This is still a placeholder implementation
-        // Actual image generation would extract the image data from the response
+        console.log(`✅ Image saved to ${outputPath}`);
+
+        // Get file stats
+        const stats = await fs.stat(outputPath);
+        const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+        console.log(`📊 Image file size: ${fileSizeMB} MB`);
+
         const imageResult: ImageResult = {
-          url: `generated-image-${Date.now()}.png`,
+          url: outputPath,
           format: 'png',
-          width: 1024,
+          width: 1024, // Imagen default resolution
           height: 1024,
-          size: 2048000 // 2MB placeholder
+          size: stats.size
         };
 
         return imageResult;
       } catch (error) {
+        console.error('❌ Imagen generation failed:', error);
         throw this.handleAPIError(error);
       } finally {
         this.activeRequests--;
       }
-    }, `Generate image with model ${model}`);
+    }, `Generate image with Imagen ${model}`);
   }
 
   /**
-   * Generate video using Veo through Gemini API
+   * Generate video using Veo API
    */
-  async generateVideo(prompt: string, referenceImage?: string, model: string = 'gemini-2.0-flash-exp'): Promise<VideoResult> {
-    return this.retryHandler.executeWithRetry(async () => {
-      await this.checkRateLimit();
-      
-      try {
-        this.activeRequests++;
-        const operation: APIOperation = {
-          type: 'video',
-          model,
-          inputSize: prompt.length + (referenceImage ? 1000 : 0),
-          complexity: 'high'
-        };
+  async generateVideo(prompt: string, referenceImage?: string, model: string = 'veo-3.0-fast-generate-preview'): Promise<VideoResult> {
+    await this.checkRateLimit();
+    
+    try {
+      this.activeRequests++;
+      const operation: APIOperation = {
+        type: 'video',
+        model,
+        inputSize: prompt.length + (referenceImage ? 1000 : 0),
+        complexity: 'high'
+      };
 
-        const cost = this.estimateCost(operation);
-        this.updateUsageStats(cost, prompt.length);
+      const cost = this.estimateCost(operation);
+      this.updateUsageStats(cost, prompt.length);
 
-        const generativeModel = this.genAI.getGenerativeModel({ model });
-        
-        // Prepare the request parts
-        const parts: any[] = [{ text: prompt }];
-        
-        // Add reference image if provided
-        if (referenceImage) {
-          parts.push({
-            inlineData: {
-              mimeType: 'image/jpeg', // Assume JPEG, could be made configurable
-              data: referenceImage // Should be base64 encoded image data
-            }
-          });
+      let videoResult: VideoResult;
+
+      if (referenceImage) {
+        // Image-to-video generation
+        let imageBytes: Uint8Array;
+        let mimeType: 'image/png' | 'image/jpeg';
+
+        if (referenceImage.startsWith('data:')) {
+          // Base64 encoded image
+          mimeType = referenceImage.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+          const base64Data = referenceImage.split(',')[1];
+          imageBytes = new Uint8Array(Buffer.from(base64Data, 'base64'));
+        } else {
+          // File path
+          const fs = await import('fs/promises');
+          const imageBuffer = await fs.readFile(referenceImage);
+          imageBytes = new Uint8Array(imageBuffer);
+          mimeType = referenceImage.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
         }
 
-        await generativeModel.generateContent({
-          contents: [{ role: 'user', parts }],
-          generationConfig: {
-            temperature: 0.7,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 8192,
-          }
+        videoResult = await this.veoManager.generateImageToVideo(imageBytes, mimeType, prompt, {
+          resolution: '720p', // Cost-optimized default
+          model: 'veo-3.0-fast-generate-preview'
         });
-
-        // Note: In a real implementation, this would process the actual video response
-        // const response = result.response;
-        // const videoData = response.text();
-        
-        // In a real implementation, this would return the actual video URL/data
-        // For now, we'll simulate the response structure
-        const videoResult: VideoResult = {
-          url: `generated-video-${Date.now()}.mp4`,
-          format: 'mp4',
-          duration: 5, // Would be extracted from actual response
-          width: 1920,
-          height: 1080,
-          size: 10485760 // Would be actual file size
-        };
-
-        return videoResult;
-      } catch (error) {
-        throw this.handleAPIError(error);
-      } finally {
-        this.activeRequests--;
+      } else {
+        // Text-to-video generation
+        videoResult = await this.veoManager.generateTextToVideo(prompt, {
+          resolution: '720p', // Cost-optimized default
+          model: 'veo-3.0-fast-generate-preview'
+        });
       }
-    }, `Generate video with model ${model}`);
+
+      return videoResult;
+    } catch (error) {
+      throw this.handleAPIError(error);
+    } finally {
+      this.activeRequests--;
+    }
+  }
+
+  /**
+   * Generate video from text prompt using Veo
+   */
+  async generateTextToVideo(prompt: string, options: {
+    duration?: number;
+    aspectRatio?: '16:9' | '9:16' | '1:1';
+    quality?: 'draft' | 'standard' | 'high';
+  } = {}): Promise<VideoResult> {
+    // Enhance prompt with technical specifications
+    const enhancedPrompt = this.buildVeoPrompt(prompt, options);
+    return this.generateVideo(enhancedPrompt);
+  }
+
+  /**
+   * Generate video from image and text prompt using Veo
+   */
+  async generateImageToVideo(imageData: string, prompt: string, options: {
+    duration?: number;
+    aspectRatio?: '16:9' | '9:16' | '1:1';
+    quality?: 'draft' | 'standard' | 'high';
+  } = {}): Promise<VideoResult> {
+    // Enhance prompt for image-to-video generation
+    const enhancedPrompt = this.buildVeoPrompt(prompt, options, true);
+    return this.generateVideo(enhancedPrompt, imageData);
+  }
+
+  /**
+   * Build optimized prompt for Veo video generation
+   */
+  private buildVeoPrompt(prompt: string, options: {
+    duration?: number;
+    aspectRatio?: '16:9' | '9:16' | '1:1';
+    quality?: 'draft' | 'standard' | 'high';
+  }, isImageToVideo: boolean = false): string {
+    const duration = options.duration || 5;
+    const aspectRatio = options.aspectRatio || '16:9';
+    const quality = options.quality || 'standard';
+
+    let enhancedPrompt = prompt;
+
+    // Add technical specifications
+    enhancedPrompt += `\n\nTechnical specifications:`;
+    enhancedPrompt += `\n- Duration: ${duration} seconds`;
+    enhancedPrompt += `\n- Aspect ratio: ${aspectRatio}`;
+    enhancedPrompt += `\n- Quality: ${quality}`;
+
+    // Add style guidance based on quality
+    if (quality === 'high') {
+      enhancedPrompt += `\n- High resolution, cinematic quality`;
+      enhancedPrompt += `\n- Smooth motion, professional lighting`;
+    } else if (quality === 'draft') {
+      enhancedPrompt += `\n- Quick generation, basic quality`;
+    }
+
+    // Add specific guidance for image-to-video
+    if (isImageToVideo) {
+      enhancedPrompt += `\n- Animate the provided image naturally`;
+      enhancedPrompt += `\n- Maintain character consistency`;
+      enhancedPrompt += `\n- Smooth transitions and realistic motion`;
+    }
+
+    return enhancedPrompt;
   }
 
   /**

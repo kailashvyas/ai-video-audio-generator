@@ -46,6 +46,23 @@ export class AudioGenerator {
   }
 
   /**
+   * Generate audio from text (simplified interface for orchestrator)
+   */
+  async generateAudio(text: string, config: any): Promise<AudioResult> {
+    const options: NarrationOptions = {
+      voice: config.voice || this.config.defaultVoice,
+      speed: config.speed || this.config.defaultSpeed,
+      pitch: config.pitch || this.config.defaultPitch,
+      volume: config.volume || this.config.defaultVolume
+    };
+
+    // Convert single text to dialogue array format
+    const dialogue = [text];
+    const result = await this.generateNarration(dialogue, options);
+    return result.audioResult;
+  }
+
+  /**
    * Generate narration audio from script dialogue
    */
   async generateNarration(

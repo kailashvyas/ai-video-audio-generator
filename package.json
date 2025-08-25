@@ -17,7 +17,10 @@
     "lint": "eslint src/**/*.ts",
     "clean": "rm -rf dist",
     "example:veo": "tsx src/examples/veo-example.ts",
-    "example:pipeline": "tsx src/examples/content-pipeline-example.ts"
+    "example:veo3": "tsx src/examples/veo3-integration-test.ts",
+    "example:cost": "tsx src/examples/cost-optimization-demo.ts",
+    "example:pipeline": "tsx src/examples/content-pipeline-example.ts",
+    "example:portfolio": "tsx src/examples/portfolio-demonstration.ts"
   },
   "keywords": [
     "ai",
@@ -30,27 +33,28 @@
   "author": "AI Content Generator",
   "license": "MIT",
   "dependencies": {
+    "@google/genai": "^1.15.0",
     "@google/generative-ai": "^0.21.0",
     "axios": "^1.7.0",
-    "dotenv": "^16.4.0",
-    "commander": "^12.0.0",
     "chalk": "^5.3.0",
-    "ora": "^8.0.0",
+    "commander": "^12.0.0",
+    "dotenv": "^16.4.0",
     "inquirer": "^10.0.0",
-    "winston": "^3.14.0",
+    "mime-types": "^2.1.35",
+    "ora": "^8.0.0",
     "uuid": "^10.0.0",
-    "mime-types": "^2.1.35"
+    "winston": "^3.14.0"
   },
   "devDependencies": {
+    "@types/inquirer": "^9.0.7",
+    "@types/mime-types": "^2.1.4",
     "@types/node": "^22.0.0",
     "@types/uuid": "^10.0.0",
-    "@types/mime-types": "^2.1.4",
-    "@types/inquirer": "^9.0.7",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
     "eslint": "^9.0.0",
-    "typescript": "^5.5.0",
     "tsx": "^4.16.0",
+    "typescript": "^5.5.0",
     "vitest": "^2.0.0"
   },
   "engines": {

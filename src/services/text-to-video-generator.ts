@@ -99,6 +99,20 @@ export class TextToVideoGenerator {
   }
 
   /**
+   * Generate video from text description (simplified interface for orchestrator)
+   */
+  async generateVideo(description: string, config: any): Promise<VideoResult> {
+    // Use the new Veo text-to-video method
+    const videoResult = await this.apiManager.generateTextToVideo(description, {
+      duration: config.duration || 5,
+      quality: config.quality || 'standard',
+      aspectRatio: config.aspectRatio || '16:9'
+    });
+
+    return videoResult;
+  }
+
+  /**
    * Generate a single video from a scene
    */
   async generateSingleVideo(scene: Scene): Promise<VideoResult> {

@@ -37,7 +37,7 @@ export class ScriptGenerator {
   constructor(geminiManager: GeminiAPIManager, config: ScriptGeneratorConfig = {}) {
     this.geminiManager = geminiManager;
     this.defaultConfig = {
-      model: 'gemini-pro',
+      model: 'gemini-1.5-flash',
       maxScenes: 8,
       sceneLength: 'medium',
       includeDialogue: true,
@@ -66,7 +66,10 @@ export class ScriptGenerator {
 
       return script;
     } catch (error) {
-      throw new Error(`Failed to generate script: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const errorMessage = error instanceof Error ? error.message : 
+                          (typeof error === 'object' && error !== null && 'message' in error) ? 
+                          (error as any).message : String(error);
+      throw new Error(`Failed to generate script: ${errorMessage}`);
     }
   }
 

@@ -138,6 +138,47 @@ export class CharacterDatabaseManager {
   }
 
   /**
+   * Extract characters from script scenes
+   */
+  async extractCharactersFromScript(scriptScenes: any[]): Promise<Character[]> {
+    const characters: Character[] = [];
+    
+    for (const scene of scriptScenes) {
+      if (scene.characters && Array.isArray(scene.characters)) {
+        for (const characterName of scene.characters) {
+          const normalizedName = this.normalizeCharacterName(characterName);
+          
+          // Check if character already exists
+          if (!this.characters.has(normalizedName)) {
+            const character: Character = {
+              name: normalizedName,
+              description: `Character appearing in ${scene.description}`,
+              appearances: [{
+                sceneId: scene.id,
+                role: 'main',
+                prominence: 'main' as const
+              }]
+            };
+            
+            this.characters.set(normalizedName, character);
+            characters.push(character);
+          } else {
+            // Add appearance to existing character
+            const existingCharacter = this.characters.get(normalizedName)!;
+            existingCharacter.appearances.push({
+              sceneId: scene.id,
+              role: 'main',
+              prominence: 'main' as const
+            });
+          }
+        }
+      }
+    }
+    
+    return characters;
+  }
+
+  /**
    * Add scene appearance for a character
    */
   addCharacterAppearance(characterName: string, sceneReference: SceneReference): void {

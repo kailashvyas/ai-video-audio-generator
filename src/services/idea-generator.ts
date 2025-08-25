@@ -31,7 +31,7 @@ export class IdeaGenerator {
   constructor(geminiManager: GeminiAPIManager, config: IdeaGeneratorConfig = {}) {
     this.geminiManager = geminiManager;
     this.defaultConfig = {
-      model: 'gemini-pro',
+      model: 'gemini-1.5-flash',
       creativity: 'medium',
       contentType: 'entertainment',
       targetAudience: 'general',

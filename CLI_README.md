@@ -1,6 +1,6 @@
 # AI Content Generator CLI
 
-A command-line interface for the AI Content Generator that provides interactive and programmatic access to multimedia content generation capabilities.
+A command-line interface for the AI Content Generator that provides interactive and programmatic access to multimedia content generation capabilities with cost-optimized defaults.
 
 ## Features
 
@@ -10,6 +10,7 @@ A command-line interface for the AI Content Generator that provides interactive 
 - **Real-time Progress**: Live progress display with time estimates
 - **System Status**: API connectivity and usage monitoring
 - **Budget Control**: Cost estimation and limit enforcement
+- **Cost Optimization**: Uses cheaper Veo 3.0 Fast model and 720p resolution by default
 
 ## Installation
 
@@ -56,6 +57,46 @@ npm run cli config --set defaultBudgetLimit=75.00
 npm run cli status
 ```
 
+## Cost Optimization
+
+The AI Content Generator uses cost-optimized defaults to minimize API usage costs while maintaining quality:
+
+### Default Cost-Saving Settings
+
+- **Model**: `veo-3.0-fast-generate-preview` (faster and cheaper than standard model)
+- **Resolution**: `720p` (significantly cheaper than 1080p or 4k)
+- **Quality**: `standard` (balanced quality vs cost)
+- **Scenes**: `5` (reasonable content length)
+
+### Cost Comparison
+
+| Setting | Cost Impact | Quality Impact | Recommended For |
+|---------|-------------|----------------|-----------------|
+| **Model: Fast** | 🟢 Low cost | 🟡 Good quality | Most content, testing |
+| **Model: Standard** | 🟡 Medium cost | 🟢 High quality | Professional content |
+| **Resolution: 720p** | 🟢 Low cost | 🟡 Good for web | Social media, web content |
+| **Resolution: 1080p** | 🟡 Medium cost | 🟢 High quality | Professional videos |
+| **Resolution: 4k** | 🔴 High cost | 🟢 Premium quality | Premium productions |
+
+### Cost Optimization Tips
+
+1. **Start with defaults** for testing and iteration
+2. **Use 720p resolution** for most content (web-ready quality)
+3. **Choose fast model** unless premium quality is required
+4. **Limit scene count** to control total costs
+5. **Use draft quality** for rapid prototyping
+
+### Budget Planning
+
+Estimated costs per video scene (approximate):
+
+- **720p + Fast Model**: ~$0.05-0.10 per scene
+- **1080p + Fast Model**: ~$0.15-0.25 per scene  
+- **720p + Standard Model**: ~$0.10-0.20 per scene
+- **1080p + Standard Model**: ~$0.25-0.40 per scene
+
+*Note: Actual costs may vary based on content complexity and API pricing*
+
 ## Commands
 
 ### `generate` (alias: `gen`)
@@ -69,6 +110,8 @@ Generate multimedia content from a topic or idea.
 - `--image-to-video`: Use image-to-video generation for better character consistency
 - `--formats <formats>`: Output formats, comma-separated (default: mp4)
 - `--quality <quality>`: Generation quality - draft, standard, or high (default: standard)
+- `--model <model>`: Veo model - veo-3.0-generate-preview or veo-3.0-fast-generate-preview (default: fast)
+- `--resolution <res>`: Video resolution - 720p, 1080p, or 4k (default: 720p for cost optimization)
 - `-c, --config <path>`: Custom configuration file path
 
 **Examples:**
@@ -84,7 +127,15 @@ npm run cli generate \
   --budget 100.00 \
   --image-to-video \
   --quality high \
+  --resolution 1080p \
+  --model veo-3.0-generate-preview \
   --formats mp4,webm
+
+# Cost-optimized generation (uses defaults)
+npm run cli generate \
+  --topic "Budget-Friendly Content" \
+  --scenes 5 \
+  --budget 25.00
 
 # Generate with random topic
 npm run cli generate --scenes 3 --budget 20.00
@@ -122,6 +173,8 @@ Manage configuration settings.
 - `defaultUseImageToVideo`: Default generation mode (true/false)
 - `defaultOutputFormats`: Default output formats (comma-separated)
 - `defaultQuality`: Default quality level (draft/standard/high)
+- `defaultModel`: Default Veo model (veo-3.0-fast-generate-preview/veo-3.0-generate-preview)
+- `defaultResolution`: Default video resolution (720p/1080p/4k)
 - `outputDirectory`: Output directory path (string)
 - `tempDirectory`: Temporary files directory (string)
 - `maxConcurrentRequests`: Max concurrent API requests (number)
@@ -173,6 +226,8 @@ The CLI uses a configuration file located at `~/.ai-content-generator/config.jso
   "defaultUseImageToVideo": false,
   "defaultOutputFormats": ["mp4"],
   "defaultQuality": "standard",
+  "defaultModel": "veo-3.0-fast-generate-preview",
+  "defaultResolution": "720p",
   "outputDirectory": "./output",
   "tempDirectory": "./temp",
   "maxConcurrentRequests": 3,
@@ -248,21 +303,30 @@ The CLI includes comprehensive error handling:
 ### Advanced Usage
 
 ```bash
-# High-quality generation with image-to-video
+# High-quality generation with premium settings
 npm run cli generate \
   --topic "Documentary about Ocean Life" \
   --scenes 10 \
   --budget 150.00 \
   --image-to-video \
   --quality high \
+  --resolution 1080p \
+  --model veo-3.0-generate-preview \
   --formats mp4,webm
 
-# Quick draft generation
+# Cost-optimized generation (uses all defaults)
+npm run cli generate \
+  --topic "Budget Content" \
+  --scenes 5 \
+  --budget 25.00
+
+# Quick draft generation with minimal cost
 npm run cli generate \
   --topic "Quick Product Demo" \
   --scenes 3 \
-  --budget 15.00 \
-  --quality draft
+  --budget 10.00 \
+  --quality draft \
+  --resolution 720p
 
 # Batch configuration updates
 npm run cli config --set defaultMaxScenes=12
@@ -310,13 +374,27 @@ for topic in "Topic 1" "Topic 2" "Topic 3"; do
 done
 ```
 
-## Performance Tips
+## Performance & Cost Tips
 
-1. **Use draft quality** for testing and iteration
-2. **Limit scene count** to control costs and generation time
-3. **Use text-to-video mode** for faster generation
-4. **Enable auto-confirm** for batch operations
-5. **Monitor usage** with `npm run cli status`
+### Cost Optimization
+1. **Use default settings** for most content (720p + fast model)
+2. **Start with 720p resolution** - excellent for web and social media
+3. **Use fast model** unless premium quality is specifically required
+4. **Limit scene count** to control total costs
+5. **Use draft quality** for testing and iteration
+
+### Performance Optimization
+1. **Use text-to-video mode** for faster generation
+2. **Enable auto-confirm** for batch operations
+3. **Monitor usage** with `npm run cli status`
+4. **Use smaller scene counts** for faster completion
+5. **Consider parallel generation** for multiple projects
+
+### Quality vs Cost Balance
+- **Testing/Prototyping**: 720p + fast model + draft quality
+- **Social Media**: 720p + fast model + standard quality (default)
+- **Professional Web**: 1080p + fast model + standard quality
+- **Premium Production**: 1080p + standard model + high quality
 
 ## Support
 
